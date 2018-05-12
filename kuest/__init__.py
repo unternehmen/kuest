@@ -1,4 +1,5 @@
 import sys
+import math
 import pygame
 from pygame.locals import *
 import OpenGL
@@ -6,7 +7,7 @@ from OpenGL.GL import *
 from pkg_resources import resource_string
 import glm
 
-FPS = 30
+FPS = 35
 SCREEN_WIDTH = 640
 SCREEN_HEIGHT = 480
 SCREEN_SIZE = SCREEN_WIDTH, SCREEN_HEIGHT
@@ -39,6 +40,10 @@ def load_shader(path, kind):
 def main():
     pygame.init()
     screen = pygame.display.set_mode(SCREEN_SIZE, OPENGL | DOUBLEBUF)
+    
+    # Grab the mouse so we can use it for rotation.
+    pygame.mouse.set_visible(False)
+    pygame.event.set_grab(True)
 
     # Only run if the computer supports OpenGL 2.1.
     if not glInitGl21VERSION():
@@ -66,24 +71,57 @@ def main():
         die('error: could not bind uniform "transform"')
 
     # Set up game state.
+    player = {'x': 0.0, 'y': 0.0, 'z': 5.0, 'ydeg': 0.0, 'speed': 0.1}
     clock = pygame.time.Clock()
     while True:
         for event in pygame.event.get():
             if event.type == QUIT:
                 sys.exit()
+            elif event.type == MOUSEMOTION:
+                xoff, yoff = pygame.mouse.get_rel()
+                player['ydeg'] += xoff * 0.5
+            elif event.type == KEYDOWN:
+                if event.key == K_ESCAPE:
+                    sys.exit()
+                    
+        keys_pressed = pygame.key.get_pressed()
+        if keys_pressed[K_w]:
+            player['z'] -= math.cos(math.radians(player['ydeg'])) * player['speed']
+            player['x'] += math.sin(math.radians(player['ydeg'])) * player['speed']
+        elif keys_pressed[K_s]:
+            player['z'] += math.cos(math.radians(player['ydeg'])) * player['speed']
+            player['x'] -= math.sin(math.radians(player['ydeg'])) * player['speed']
+        if keys_pressed[K_d]:
+            player['z'] += math.sin(math.radians(player['ydeg'])) * player['speed']
+            player['x'] += math.cos(math.radians(player['ydeg'])) * player['speed']
+        elif keys_pressed[K_a]:
+            player['z'] -= math.sin(math.radians(player['ydeg'])) * player['speed']
+            player['x'] -= math.cos(math.radians(player['ydeg'])) * player['speed']
+                
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-        # Draw screen contents.
-        # ...
+        
+        ## Draw screen contents.
         model = glm.translate(glm.mat4(1.0), glm.tvec3(0.0, 0.0, 0.0))
+        
+        # Calculate the player's view transformation.
+        translation = glm.translate(glm.mat4(1.0),
+                                    glm.tvec3(-player['x'],
+                                              -player['y'],
+                                              -player['z']))
+        rotation = glm.rotate(glm.mat4(1.0),
+                              glm.radians(player['ydeg']),
+                              glm.tvec3(0.0, 1.0, 0.0))
+        view = rotation * translation
+        
+        # Calculate the perspective projection.
         projection = glm.perspective(
                        glm.radians(45.0),
                        float(SCREEN_WIDTH) / float(SCREEN_HEIGHT),
                        0.1, 10.0)
-        view = glm.lookAt(glm.tvec3(0.0, 0.0, 5.0),
-                          glm.tvec3(0.0, 0.0, 0.0),
-                          glm.tvec3(0.0, 1.0, 0.0))
+                       
+        # Produce the final transformation matrix.
         transform = projection * view * model
-        
+
         glUseProgram(glsl_program)
         glEnableVertexAttribArray(attr_coord3d)
         vertices = [

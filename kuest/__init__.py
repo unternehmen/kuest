@@ -66,12 +66,26 @@ def main():
     attr_coord3d = glGetAttribLocation(glsl_program, 'coord3d')
     if attr_coord3d == -1:
         die('error: could not bind attribute "coord3d"')
-    unif_transform = glGetUniformLocation(glsl_program, 'transform')
-    if unif_transform == -1:
-        die('error: could not bind uniform "transform"')
+    unif_mvp = glGetUniformLocation(glsl_program, 'mvp')
+    if unif_mvp == -1:
+        die('error: could not bind uniform "mvp"')
 
     # Set up game state.
-    player = {'x': 0.0, 'y': 0.0, 'z': 5.0, 'ydeg': 0.0, 'speed': 0.1}
+    player = {'x': 2.0, 'y': 0.0, 'z': 2.0, 'ydeg': 0.0, 'speed': 0.03}
+    stage = {
+        'data': [1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                 1, 0, 0, 1, 0, 1, 1, 1, 1, 1,
+                 1, 0, 0, 1, 0, 1, 1, 1, 1, 1,
+                 1, 1, 0, 0, 0, 1, 1, 1, 1, 1,
+                 1, 1, 0, 0, 0, 1, 1, 1, 1, 1,
+                 1, 1, 1, 0, 0, 1, 1, 1, 1, 1,
+                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        'width': 10,
+        'height': 10
+    }
     clock = pygame.time.Clock()
     while True:
         for event in pygame.event.get():
@@ -85,23 +99,24 @@ def main():
                     sys.exit()
                     
         keys_pressed = pygame.key.get_pressed()
+        xcomp = math.cos(math.radians(player['ydeg']))
+        zcomp = math.sin(math.radians(player['ydeg']))
         if keys_pressed[K_w]:
-            player['z'] -= math.cos(math.radians(player['ydeg'])) * player['speed']
-            player['x'] += math.sin(math.radians(player['ydeg'])) * player['speed']
+            player['z'] -= xcomp * player['speed']
+            player['x'] += zcomp * player['speed']
         elif keys_pressed[K_s]:
-            player['z'] += math.cos(math.radians(player['ydeg'])) * player['speed']
-            player['x'] -= math.sin(math.radians(player['ydeg'])) * player['speed']
+            player['z'] += xcomp * player['speed']
+            player['x'] -= zcomp * player['speed']
         if keys_pressed[K_d]:
-            player['z'] += math.sin(math.radians(player['ydeg'])) * player['speed']
-            player['x'] += math.cos(math.radians(player['ydeg'])) * player['speed']
+            player['z'] += zcomp * player['speed']
+            player['x'] += xcomp * player['speed']
         elif keys_pressed[K_a]:
-            player['z'] -= math.sin(math.radians(player['ydeg'])) * player['speed']
-            player['x'] -= math.cos(math.radians(player['ydeg'])) * player['speed']
+            player['z'] -= zcomp * player['speed']
+            player['x'] -= xcomp * player['speed']
                 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         
         ## Draw screen contents.
-        model = glm.translate(glm.mat4(1.0), glm.tvec3(0.0, 0.0, 0.0))
         
         # Calculate the player's view transformation.
         translation = glm.translate(glm.mat4(1.0),
@@ -119,20 +134,43 @@ def main():
                        float(SCREEN_WIDTH) / float(SCREEN_HEIGHT),
                        0.1, 10.0)
                        
-        # Produce the final transformation matrix.
-        transform = projection * view * model
+        # Produce the final world matrix.
+        transform = projection * view
 
         glUseProgram(glsl_program)
         glEnableVertexAttribArray(attr_coord3d)
         vertices = [
-            -0.5, 0.5, 0.0,
-            -0.5, -0.5, 0.0,
-            0.5, -0.5, 0.0,
-            0.5, 0.5, 0.0
+            -0.5, 0.5, -0.5,
+            -0.5, -0.5, -0.5,
+            0.5, -0.5, -0.5,
+            0.5, 0.5, -0.5,
+            0.5, 0.5, -0.5,
+            0.5, -0.5, -0.5,
+            0.5, -0.5, 0.5,
+            0.5, 0.5, 0.5,
+            0.5, 0.5, 0.5,
+            0.5, -0.5, 0.5,
+            -0.5, -0.5, 0.5,
+            -0.5, 0.5, 0.5,
+            -0.5, 0.5, -0.5,
+            -0.5, -0.5, -0.5,
+            -0.5, -0.5, 0.5,
+            -0.5, 0.5, 0.5,
         ]
         glVertexAttribPointer(attr_coord3d, 3, GL_FLOAT, GL_FALSE, 0, vertices)
-        glUniformMatrix4fv(unif_transform, 1, GL_FALSE, glm.value_ptr(transform))
-        glDrawArrays(GL_QUADS, 0, 4)
+        for y in range(stage['height']):
+            for x in range(stage['width']):
+                i = y * stage['width'] + x
+                if stage['data'][i] == 1:
+                    model = glm.translate(glm.mat4(1.0),
+                                          glm.tvec3(float(x),
+                                                    0.0,
+                                                    float(y)))
+                    mvp = transform * model
+                    glUniformMatrix4fv(unif_mvp, 1, GL_FALSE,
+                                       glm.value_ptr(mvp))
+                    glDrawArrays(GL_QUADS, 0, 16)
+        
         glDisableVertexAttribArray(attr_coord3d)
         
         pygame.display.flip()

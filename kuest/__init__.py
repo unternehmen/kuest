@@ -120,7 +120,7 @@ def main():
                    0.1, 10.0)
 
     # Set up game state.
-    player = {'x': 2.0, 'y': 0.0, 'z': 2.0, 'ydeg': 0.0, 'speed': 0.03}
+    player = {'x': 2.0, 'y': 0.0, 'z': 2.0, 'ydeg': 0.0, 'tiltdeg': 0.0, 'speed': 0.03}
     stage = {
         'data': [1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                  1, 0, 0, 1, 0, 1, 1, 1, 1, 1,
@@ -143,6 +143,11 @@ def main():
             elif event.type == MOUSEMOTION:
                 xoff, yoff = pygame.mouse.get_rel()
                 player['ydeg'] += xoff * 0.5
+                player['tiltdeg'] += yoff * 0.25
+                if player['tiltdeg'] < -90.0:
+                    player['tiltdeg'] = -90.0
+                elif player['tiltdeg'] > 90.0:
+                    player['tiltdeg'] = 90.0
             elif event.type == KEYDOWN:
                 if event.key == K_ESCAPE:
                     sys.exit()
@@ -175,7 +180,10 @@ def main():
         rotation = glm.rotate(glm.mat4(1.0),
                               glm.radians(player['ydeg']),
                               glm.tvec3(0.0, 1.0, 0.0))
-        view = rotation * translation
+        tilt = glm.rotate(glm.mat4(1.0),
+                          glm.radians(player['tiltdeg']),
+                          glm.tvec3(1.0, 0.0, 0.0))
+        view = tilt * rotation * translation
                        
         # Produce the final world matrix.
         transform = projection * view

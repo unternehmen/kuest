@@ -6,6 +6,7 @@ import OpenGL
 from OpenGL.GL import *
 from pkg_resources import resource_string
 import glm
+from ctypes import c_float, c_uint
 
 FPS = 35
 SCREEN_WIDTH = 640
@@ -69,6 +70,54 @@ def main():
     unif_mvp = glGetUniformLocation(glsl_program, 'mvp')
     if unif_mvp == -1:
         die('error: could not bind uniform "mvp"')
+        
+    # Models
+    cube = {
+      'vertices': [
+        -0.5, -0.5, -0.5,
+        -0.5, -0.5, 0.5,
+        -0.5, 0.5, 0.5,
+        -0.5, 0.5, -0.5,
+        0.5, -0.5, -0.5,
+        0.5, -0.5, 0.5,
+        0.5, 0.5, 0.5,
+        0.5, 0.5, -0.5,
+      ],
+      'faces': [
+        # left
+        0, 3, 1,
+        3, 2, 1,
+        # front
+        0, 4, 3,
+        4, 7, 3,
+        # right
+        4, 5, 7,
+        5, 6, 7,
+        # back
+        1, 2, 5,
+        2, 6, 5
+      ]
+    }
+    
+    verts_buffer = (c_float * len(cube['vertices']))(*cube['vertices'])
+    faces_buffer = (c_uint * len(cube['faces']))(*cube['faces'])
+    
+    vbo_cube_verts = glGenBuffers(1)
+    glBindBuffer(GL_ARRAY_BUFFER, vbo_cube_verts)
+    glBufferData(GL_ARRAY_BUFFER, verts_buffer, GL_STATIC_DRAW)
+    
+    ibo_cube_elems = glGenBuffers(1)
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo_cube_elems)
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, faces_buffer, GL_STATIC_DRAW)
+    
+    del verts_buffer
+    del faces_buffer
+
+    # Calculate the perspective projection matrix.
+    projection = glm.perspective(
+                   glm.radians(45.0),
+                   float(SCREEN_WIDTH) / float(SCREEN_HEIGHT),
+                   0.1, 10.0)
 
     # Set up game state.
     player = {'x': 2.0, 'y': 0.0, 'z': 2.0, 'ydeg': 0.0, 'speed': 0.03}
@@ -127,37 +176,15 @@ def main():
                               glm.radians(player['ydeg']),
                               glm.tvec3(0.0, 1.0, 0.0))
         view = rotation * translation
-        
-        # Calculate the perspective projection.
-        projection = glm.perspective(
-                       glm.radians(45.0),
-                       float(SCREEN_WIDTH) / float(SCREEN_HEIGHT),
-                       0.1, 10.0)
                        
         # Produce the final world matrix.
         transform = projection * view
 
         glUseProgram(glsl_program)
         glEnableVertexAttribArray(attr_coord3d)
-        vertices = [
-            -0.5, 0.5, -0.5,
-            -0.5, -0.5, -0.5,
-            0.5, -0.5, -0.5,
-            0.5, 0.5, -0.5,
-            0.5, 0.5, -0.5,
-            0.5, -0.5, -0.5,
-            0.5, -0.5, 0.5,
-            0.5, 0.5, 0.5,
-            0.5, 0.5, 0.5,
-            0.5, -0.5, 0.5,
-            -0.5, -0.5, 0.5,
-            -0.5, 0.5, 0.5,
-            -0.5, 0.5, -0.5,
-            -0.5, -0.5, -0.5,
-            -0.5, -0.5, 0.5,
-            -0.5, 0.5, 0.5,
-        ]
-        glVertexAttribPointer(attr_coord3d, 3, GL_FLOAT, GL_FALSE, 0, vertices)
+        glBindBuffer(GL_ARRAY_BUFFER, vbo_cube_verts)
+        glVertexAttribPointer(attr_coord3d, 3, GL_FLOAT, GL_FALSE, 0, None)
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo_cube_elems)
         for y in range(stage['height']):
             for x in range(stage['width']):
                 i = y * stage['width'] + x
@@ -169,7 +196,9 @@ def main():
                     mvp = transform * model
                     glUniformMatrix4fv(unif_mvp, 1, GL_FALSE,
                                        glm.value_ptr(mvp))
-                    glDrawArrays(GL_QUADS, 0, 16)
+                    glDrawElements(GL_TRIANGLES,
+                                   len(cube['faces']),
+                                   GL_UNSIGNED_INT, None)
         
         glDisableVertexAttribArray(attr_coord3d)
         

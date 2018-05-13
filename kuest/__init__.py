@@ -99,6 +99,7 @@ def main():
       ]
     }
     
+    # Load cube model onto the graphics card. 
     verts_buffer = (c_float * len(cube['vertices']))(*cube['vertices'])
     faces_buffer = (c_uint * len(cube['faces']))(*cube['faces'])
     
@@ -188,6 +189,7 @@ def main():
         # Produce the final world matrix.
         transform = projection * view
 
+        # Draw the stage.
         glUseProgram(glsl_program)
         glEnableVertexAttribArray(attr_coord3d)
         glBindBuffer(GL_ARRAY_BUFFER, vbo_cube_verts)
